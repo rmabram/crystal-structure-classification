@@ -1,0 +1,100 @@
+log 4500MPa_r8_wyckoff.log
+units metal
+boundary p p p
+
+variable L equal 10
+variable P equal 4.5*10000
+
+variable a equal 5.5
+variable deg2rad equal PI/180.0
+variable b equal ${a}
+variable c equal ${a}
+variable alfa equal 110*${deg2rad}
+variable beta equal ${alfa}
+variable gama equal ${alfa}
+
+lattice custom  $a  a1 1 0 0  a2 0 1 0  a3 0 0 1    &
+basis           0.283600   0.283600   0.283600 &
+basis           0.716400   0.716400   0.716400 &
+basis           0.462000   0.967800   0.266700 &
+basis           0.538000   0.032200   0.733300 &
+basis           0.266700   0.462000   0.967800 &
+basis           0.733300   0.538000   0.032200 &
+basis           0.967800   0.266700   0.462000 &
+basis           0.032200   0.733300   0.538000
+
+region box block 0 ${L} 0 ${L} 0 ${L} units lattice
+
+create_box 2 box
+create_atoms 2 region box &
+    basis 1 1 &
+    basis 2 1 &
+    basis 3 2 &
+    basis 4 2 &
+    basis 5 2 &
+    basis 6 2 &
+    basis 7 2 &
+    basis 8 2 
+
+
+region atm block 0 2 0 2 0 2 units lattice
+group gatm region atm
+
+group w2a type 1
+group w6b type 2
+
+group w2 intersect w2a gatm
+group w6 intersect w6b gatm
+
+#select random atoms
+#group gatm id        5594  7979  5416  3176   973  7512  7825    60  5058   738  4579 &
+#       3457   752    69  5116  2095  1580  3261  1251  5891  5705  7316 &
+#        653  4644  5589  4515  1870  2205  1205  1449  3816  3267  7867 &
+#       1780  4903  3168  2783  3317  5345  7023  4755  4752  3695  5821 &
+#       7194  2077   611  2047  6738  2350  6246  5630  4669  6131  2292 &
+#       1163	
+
+variable a  equal ${L}*$a
+variable b equal ${a}
+variable c equal ${a}
+
+variable lx equal $a
+variable xy equal $b*cos(${gama})
+variable xz equal $c*cos(${beta})
+variable ly equal sqrt($b*$b-${xy}*${xy})
+variable yz equal ($b*$c*cos(${alfa})-${xy}*${xz})/${ly}
+variable lz equal sqrt($c*$c-${xz}*${xz}-${yz}*${yz})
+
+change_box all triclinic units box
+change_box all 	x final 0 ${lx} y final 0 ${ly} z final 0 ${lz} &
+				xy final ${xy} xz final ${xz} yz final ${yz} remap units box
+
+mass 1 28.086
+mass 2 28.086
+
+pair_style      snap	
+pair_coeff * * Si_Zuo_JPCA2020.snapcoeff Si_Zuo_JPCA2020.snapparam Si Si
+
+fix f1 all box/relax tri ${P} vmax 0.001
+minimize 1.0e-10 1.0e-10 100000 100000
+unfix f1
+
+timestep 0.002
+
+dump d2 all custom 1000 all_r8.lammpsdump id type xs ys zs vx vy vz fx fy fz
+
+velocity all create 300 187287
+fix f1 all npt temp 300 300 0.03 tri ${P} ${P} $(250*dt)
+
+thermo_style custom step temp pe etotal lx ly lz pxx pyy pzz press
+thermo 1000
+
+reset_timestep 0
+run 100000
+
+dump d1 gatm custom 1 selected_r8.lammpsdump id type xs ys zs vx vy vz 
+dump dw2 w2 custom 1 w2a_r8.lammpsdump id type xs ys zs vx vy vz 
+dump dw6 w6 custom 1 w6b_r8.lammpsdump id type xs ys zs vx vy vz 
+
+thermo 1
+run 500000
